@@ -31,6 +31,11 @@ A super simple FastAPI application that allows students to view and sign up for 
 | ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------- |
 | GET    | `/activities`                                                     | Get all activities with their details and current participant count |
 | POST   | `/activities/{activity_name}/signup?email=student@mergington.edu` | Sign up for an activity                                             |
+| DELETE | `/activities/{activity_name}/participants?email=student@mergington.edu` | Remove a participant (admin authentication required)               |
+
+Participant removal requires an admin bearer token configured in the
+`ACTIVITY_ADMIN_TOKEN` environment variable. Send it using the HTTP Bearer authentication. Requests are
+rejected if no token is configured.
 
 ## Data Model
 
@@ -48,3 +53,19 @@ The application uses a simple data model with meaningful identifiers:
    - Grade level
 
 All data is stored in memory, which means data will be reset when the server restarts.
+
+## Testing
+
+From the repository root, install the dependencies and run the backend tests:
+
+```bash
+python -m pip install -r requirements.txt
+python -m pytest tests/ -v
+```
+
+The tests in `tests/` use pytest and FastAPI's `TestClient`, with explicit
+Arrange-Act-Assert sections. Each test receives isolated in-memory activity
+data, so signup and removal tests do not affect one another. No running server
+is required.
+
+To run all discovered tests, use `python -m pytest -v`.
