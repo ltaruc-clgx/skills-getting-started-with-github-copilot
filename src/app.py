@@ -5,14 +5,18 @@ A super simple FastAPI application that allows students to view and sign up
 for extracurricular activities at Mergington High School.
 """
 
-from fastapi import FastAPI, HTTPException
+import os
+import secrets
+from pathlib import Path
+
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
-import os
-from pathlib import Path
 
 app = FastAPI(title="Mergington High School API",
               description="API for viewing and signing up for extracurricular activities")
+admin_auth = HTTPBearer(auto_error=False)
 
 # Mount the static files directory
 current_dir = Path(__file__).parent
@@ -109,8 +113,20 @@ def signup_for_activity(activity_name: str, email: str):
     return {"message": f"Signed up {email} for {activity_name}"}
 
 
+def require_admin(credentials: HTTPAuthorizationCredentials = Depends(admin_auth)):
+    admin_token = os.getenv("ACTIVITY_ADMIN_TOKEN")
+    if not admin_token:
+        raise HTTPException(status_code=503, detail="Admin authentication is not configured")
+    if not credentials or not secrets.compare_digest(credentials.credentials, admin_token):
+        raise HTTPException(
+            status_code=401,
+            detail="Admin authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 @app.delete("/activities/{activity_name}/participants")
-def remove_participant(activity_name: str, email: str):
+def remove_participant(activity_name: str, email: str, _: None = Depends(require_admin)):
     """Unregister a student from an activity"""
     if activity_name not in activities:
         raise HTTPException(status_code=404, detail="Activity not found")

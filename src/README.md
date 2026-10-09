@@ -31,6 +31,11 @@ A super simple FastAPI application that allows students to view and sign up for 
 | ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------- |
 | GET    | `/activities`                                                     | Get all activities with their details and current participant count |
 | POST   | `/activities/{activity_name}/signup?email=student@mergington.edu` | Sign up for an activity                                             |
+| DELETE | `/activities/{activity_name}/participants?email=student@mergington.edu` | Remove a participant (admin authentication required)               |
+
+Participant removal requires an admin bearer token configured in the
+`ACTIVITY_ADMIN_TOKEN` environment variable. Send it using the HTTP Bearer authentication. Requests are
+rejected if no token is configured.
 
 ## Data Model
 

@@ -14,6 +14,7 @@ def isolated_activities(monkeypatch):
 
 
 @pytest.fixture
-def client(isolated_activities):
+def client(isolated_activities, monkeypatch):
+    monkeypatch.setenv("ACTIVITY_ADMIN_TOKEN", "test-admin-token")
     with TestClient(app_module.app) as test_client:
         yield test_client

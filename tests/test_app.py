@@ -3,6 +3,10 @@ from copy import deepcopy
 import pytest
 
 
+ADMIN_TOKEN = "test-admin-token"
+ADMIN_HEADERS = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
+
+
 def test_root_redirects_to_activity_page(client):
     # Arrange
     url = "/"
@@ -77,7 +81,11 @@ def test_removal_unregisters_participant_without_changing_other_data(client):
     expected[activity_name]["participants"].remove(email)
 
     # Act
-    response = client.delete(f"/activities/{activity_name}/participants", params={"email": email})
+    response = client.delete(
+        f"/activities/{activity_name}/participants",
+        params={"email": email},
+        headers=ADMIN_HEADERS,
+    )
     activities_response = client.get("/activities")
 
     # Assert
@@ -118,7 +126,8 @@ def test_invalid_mutation_preserves_state(
     before = deepcopy(isolated_activities)
 
     # Act
-    response = client.request(method, path, params={"email": email})
+    headers = ADMIN_HEADERS if method == "DELETE" else None
+    response = client.request(method, path, params={"email": email}, headers=headers)
     activities_response = client.get("/activities")
 
     # Assert
@@ -143,7 +152,8 @@ def test_missing_email_returns_validation_error_without_mutation(
     before = deepcopy(isolated_activities)
 
     # Act
-    response = client.request(method, path)
+    headers = ADMIN_HEADERS if method == "DELETE" else None
+    response = client.request(method, path, headers=headers)
     activities_response = client.get("/activities")
 
     # Assert
@@ -159,12 +169,18 @@ def test_repeated_removal_returns_not_found_without_further_mutation(client, iso
     activity_name = "Chess Club"
     email = isolated_activities[activity_name]["participants"][0]
     first_removal = client.delete(
-        f"/activities/{activity_name}/participants", params={"email": email}
+        f"/activities/{activity_name}/participants",
+        params={"email": email},
+        headers=ADMIN_HEADERS,
     )
     before = deepcopy(isolated_activities)
 
     # Act
-    response = client.delete(f"/activities/{activity_name}/participants", params={"email": email})
+    response = client.delete(
+        f"/activities/{activity_name}/participants",
+        params={"email": email},
+        headers=ADMIN_HEADERS,
+    )
     activities_response = client.get("/activities")
 
     # Assert
@@ -189,7 +205,7 @@ def test_participant_can_register_again_after_last_participant_is_removed(client
     # Act
     signup_response = client.post(signup_path, params={"email": email})
     registered_response = client.get("/activities")
-    removal_response = client.delete(removal_path, params={"email": email})
+    removal_response = client.delete(removal_path, params={"email": email}, headers=ADMIN_HEADERS)
     removed_response = client.get("/activities")
     second_signup_response = client.post(signup_path, params={"email": email})
     registered_again_response = client.get("/activities")
@@ -206,3 +222,37 @@ def test_participant_can_register_again_after_last_participant_is_removed(client
     assert removed_response.json()[activity_name]["participants"] == []
     assert registered_again_response.status_code == 200
     assert registered_again_response.json() == expected_registered
+
+
+def test_removal_requires_admin_authentication(client, isolated_activities):
+    activity_name = "Chess Club"
+    email = isolated_activities[activity_name]["participants"][0]
+    before = deepcopy(isolated_activities)
+
+    response = client.delete(
+        f"/activities/{activity_name}/participants",
+        params={"email": email},
+        headers={},
+    )
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert isolated_activities == before
+
+
+def test_removal_fails_closed_when_admin_authentication_is_not_configured(
+    client, isolated_activities, monkeypatch
+):
+    activity_name = "Chess Club"
+    email = isolated_activities[activity_name]["participants"][0]
+    before = deepcopy(isolated_activities)
+    monkeypatch.delenv("ACTIVITY_ADMIN_TOKEN")
+
+    response = client.delete(
+        f"/activities/{activity_name}/participants",
+        params={"email": email},
+        headers=ADMIN_HEADERS,
+    )
+
+    assert response.status_code == 503
+    assert isolated_activities == before
